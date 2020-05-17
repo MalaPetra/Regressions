@@ -1,0 +1,210 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+    self_contained: no
+---
+
+#Logistic Regression
+
+## Introduction
+
+Problem:
+
+As a first-time home buyer you are busy organizing your fiancial records so you can apply for a home mortgage. As part of this process you order a copy or your credit report to check for errors and gauge your credit score which can range from 300 to 850. Lenders will factor in your credit score when deciding to approve or not approve you for a mortgage. Turns out your score is 720.
+
+While doing your research you find some raw data online showing 1000 applicant credit scores and whther or not the application was approved (yes/no).
+
+Using the data you found, you would like to do the following:
+1. Develop a model that will provide the probability and the odds of being approved for any given credit score.
+2. Discover approximately what credit score is associated with a probability of 50% (the odds are even) for being approved.
+3. Input your score of 720 into the model to determine the probability and odds of you being approved for a mortgage.
+4. Determine how improving your credit score from 720 to 750 would affect your probability and odds for being approved for the mortgage.
+
+```{r message=FALSE, warning=FALSE}
+# libraries
+library(tidyverse)
+```
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+# sample data
+raw_data <- matrix(c(655, 692, 681, 663, 688, 693, 699, 699, 683, 698, 655, 703, 704, 745, 702, 0,0,0,1,1,1,0,1,1,0,1,0,1,1,1), ncol=2, nrow=15)
+
+colnames(raw_data) <- c('creditScore', 'approved')
+
+mydata <- data.frame(raw_data); mydata
+# creditScore = the applicant's credit score
+# approved is coded 1 for approved and 0 for not approved; it's a binary, mutually exclusive variable
+```
+
+```{r}
+# visualising data
+raw_data_graph <- ggplot(mydata, aes(y = creditScore, x = approved))+
+  geom_point()
+```
+
+
+*What is logistic regression?*
+
+- *model* the probability of an event occurring depeneding on the values of the independent variables, which can be categorical or numberical
+- *estimate* the probability that an event occurs for a randomly selected observation versus the probability that the event does not occur
+- *predict* the effect of a series of variables on a binary response variable
+- *classify* observations by estimating the probability that an observation is in a particular category (such as approved or not approved in our problem)
+
+*Why not other regression methods?*
+
+- Simple linear regression is one quantitaative variable predicting another
+- Multiple regression is simple linear regression with more independent variables
+- Nonlinear regression is still two guantitative variables, but the data is curvilinear.
+
+Running a typical linear regression in the same way has major problems:
+
+- Binary data does not have a normal distribution, which is a condition needed for most other types of regression
+- Predicted values of the DV can be beyond 0 and 1 which violates the definition of probability
+- Probabilities are often not linear such as "U" shapes where probability is very low or very high at the extremes of x-values
+
+##Probability review
+
+**What is the probability?**
+
+$P = \frac {outcomes\quad of\quad interest} {all\quad possible\quad outcomes}$
+
+Fair coin flip:
+
+$P(heads) = \frac{1}{2}=0.5$
+
+Fair die roll:
+
+$P(1 or 2) = \frac{2}{6}=\frac{1}{3}=0.333$
+
+Deck of playing cards:
+
+$P(diamond \quad card) = \frac{13}{52}=\frac{1}{4}=0.25$
+
+
+**What are the odds?**
+
+$odds = \frac{P(occurring)}{P(not\quad occurring)}$
+
+$odds = \frac{p}{1-p}$
+
+Fair coing flip:
+
+$odds(heads) = \frac{0.5}{0.5} = 1 or 1:1$
+
+Fair die roll:
+
+$odds(1\quad or\quad 2) = \frac{0.333}{0.666} = \frac{1}{2} = 0.5\quad or\quad 1:2$
+
+Deck of playing cards:
+
+$odds(diamond\quad card) = \frac{0.25}{0.75} = \frac{1}{3} = 0.333\quad or\quad 1:3$
+
+**Odds Ratio**
+
+The odds ration is exactly what it says it is, a ragion of two odds
+
+Fair coing flip:
+
+$P(heads) = \frac{1}{2}=0.5$
+
+$odds(heads) = \frac{0.5}{0.5} = 1 or 1:1$
+
+Loaded coin flip:
+
+$P(heads) = \frac{7}{10}=0.7$
+
+$odds(heads) = \frac{0.7}{0.3}=2.333$
+
+*Odds Ratio*
+
+$Odds\quad ratio = \frac{odds_1}{odds_0}$
+
+$Odds\quad ratio = \frac{\frac{p_1}{1-p_1}}{\frac{p_0}{1-p_0}}$
+
+$Odds\quad ratio = \frac{\frac{0.7}{0.3}}{\frac{0.5}{0.5}} = \frac{0.7}{0.3} * \frac{0.5}{0.5} = \frac{0.35}{0.15} = 2.333$
+
+The odds of getting "heads" on the loaded coing are 2.333x greater than the fair coin.
+
+##Odds Ratio in logistic regression
+
+The odds ratio for a variable in logistic regression represents how the ods change with a 1 unit increase in that variable holding all other variables constant
+
+For (fictitious) example:
+
+- Body weight and sleep apnea (two categories: apnea/no apnea)
+- Weight variable had an odds ratio of 1.07
+This means a one pound increase in weight increases the odds of having sleep apnea by 1.07 (7%) (not very high b/c we are looking at 1lb increments)
+- A ten pound increase in weight increases the odds to 1.98, or almost doubles a person's odds of having sleep apnea and a 20 pound increases raises the odds to 3.87 or almost 4x greater
+- This holds true at any point in the weight spectrum
+
+Probability versus odds:
+
+- It is important to separate probability and odds
+- In the previous example a person gaining 20 pounds increases their odds of sleep apnea by almost a factor of 4 regardless of their starting weight
+- However the probability of having apnea is lower in people with lower body weight to begin with
+- So while the odds are 4x greater, the probability may still be low
+- Basically what this means is that the odds can have a large magnitude even if the underlying probabilities are low
+
+
+##Bernoulli distribution
+
+- The dependent variable in logistic regression follows the Bernoulli distribution having an unknown probability, p
+- The Bernoulli distribution is just a special case of the Binomial distribution where n = 1 (just one trial)
+- Success is 1 and failure is 0
+- The probability of success is p and failure is q=1-p
+- In logistic regression we are estimating an unknown p for any given linear combination of the independent variables
+-Therefore we need to link together our independent variables to essentially the Bernoulli distribution, that link is called the logit.
+
+
+Note: In probability theory and statistics, the Bernoulli distribution, named after Swiss mathematician Jacob Bernoulli,[1] is the discrete probability distribution of a random variable which takes the value 1 with probability $p$ p and the value 0 with probability $q=1-p$ that is, the probability distribution of any single experiment that asks a yes–no question; the question results in a boolean-valued outcome, a single bit of information whose value is success/yes/true/one with probability p and failure/no/false/zero with probability q. It can be used to represent a (possibly biased) coin toss where 1 and 0 would represent "heads" and "tails" (or vice versa), respectively, and p would be the probability of the coin landing on heads or tails, respectively. In particular, unfair coins would have $p\neq 1/2$
+
+The Bernoulli distribution is a special case of the binomial distribution where a single trial is conducted (so n would be 1 for such a binomial distribution). It is also a special case of the two-point distribution, for which the possible outcomes need not be 0 and 1.
+
+##What is the logit?
+
+In logistic regression we do not know $p$ like we do in Binomial (Bernoulli) distribution problems. The goal of logistic regression is to estimate $p$ for a linear combination of the independent variables. Estimate of $p$ is p-hat, $\hat p$
+
+The tie together our linear combination of variables and in essence the Bernoulli distribution we need a function that links them together, or maps the linear combination of variables that could result in any value onto the Bernoulli probability distribution with a domain from 0 to 1. The natural log of the odds ration, the logit, is that link function.
+
+ln(odds) => $ln(\frac{p}{1-p})$ is the logit(p) 
+
+OR
+
+ln(p) - ln(1-p) = logit(p)
+
+
+Reminder: $log_ex = ln x$
+
+###Graphical Example of Logit
+
+![](~/documents/GitHub/Logistic_Regression/probability_3.png)
+
+Bernoulli distribution where p = 0.5:
+
+ ![](~/documents/GitHub/Logistic_Regression/probability_2.png) 
+
+Bernoulli distribution where p = 1:
+
+ ![](~/documents/GitHub/Logistic_Regression/probability_1.png) 
+ 
+##Inverse Logit
+ 
+In our logit link function graph, 0 to 1 ran along the x=axis but we want the probabilities to be on the y-axis. We can achieve that by taking the inverse of the logit function.
+
+![](~/documents/GitHub/Logistic_Regression/inverse1.png) 
+
+
+###Graphical Example of Inverse Logit
+
+![](~/documents/GitHub/Logistic_Regression/inverse2.png) 
+![](~/documents/GitHub/Logistic_Regression/inverse3.png) 
+
+## Coefficients and Estimated Regression Equatiton
+
+- The regression coefficients for logistic regression are calculated using maximum likelihood estimation or MLE
+- The natural logarithm of the odds ration is equvalent to a linear function of the independent variables. The antilog of the logit function allows us to find the estimated regression equatiton.
+
+![](~/documents/GitHub/Logistic_Regression/equation.png) 
+

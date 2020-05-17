@@ -1,0 +1,661 @@
+---
+title: "Multiple Regression"
+output:
+  html_document:
+    toc: yes
+  pdf_document:
+    toc: yes
+---
+
+# Introduction to multiple regressions
+
+Problem: How long (estimate) a delivery will take ased on two factors:
+
+  1) the total distance of the trip in miles
+  2) the number of deliveries that must be made during the trip
+  
+To conduct my analysis, we took a random sample of 10 past trips and record 3 pieces of information for each trip:
+
+  1) total miles travelled
+  2) number of deliveries
+  3) total travel time in hours
+
+```{r define libraries}
+library(tidyverse)
+library("Hmisc")
+library(car)
+```
+  
+```{r creating a table}
+tribble(
+  ~milesTravelled, ~numDeliveries,  ~travelTime,
+  89, 4, 7,
+  66, 1, 5.4,
+  78, 3, 6.6,
+  111, 6, 7.4,
+  44, 1, 4.8,
+  77, 3, 6.4,
+  80, 3, 7,
+  66, 2, 5.6,
+  109, 5, 7.3,
+  76, 3, 6.4)
+
+# milesTravelled = X1
+# numDeliveries = X2
+# travelTime = Y
+```
+
+**In what way does travel time depend on the first two measures?**
+
+*Travel Time* = dependant variable
+*Miles Travelled and number of deliveries* = independent variable
+
+
+Simple linear regression is one - to - one relationship
+  I.V. => D.V.
+
+Multiple regression is many - to - one
+  I.V., I.V, I.V, I.V ... => D.V
+  
+Adding more independent variables to a multiple regression does not mean the regression will be better => **problem of overfitting**
+
+The addition of more independent variables creates more relationships among them. So not only are the independent variables potentially related to the dependent variable, they are also potentially related to each other => **multicollinearity**
+
+The ideal is for all independent ariables to be correlated with the dependent variable but not each other.
+
+**Multiple Regression Model:**
+
+$y = \beta_0 + \beta_1x_1 + \beta_2x_2 + ... \varepsilon$
+
+*(linear parameters + error)*
+
+** Multiple Regression Equation**
+
+E(Y) = $\beta_0 + \beta_1x_1 + \beta_2x_2 ...$
+
+*error term to be 0*
+
+**Estimated Multiple Regression Equation:**
+
+$\hat{y} = \beta_0 + \beta_1x_1 + \beta_2x_2$
+
+*$b_{0,1,2}$ are estimates of $\beta_{0,1,2}$*
+*$\hat{y}$ - predicted value of the dependent variable*
+
+## Example of equation
+
+$\hat{y} = 27 + 9x_1 + 12x_2$
+
+*$x_1$ = capital investment ($ 1000s)*
+*$x_2$ = marketing expenditures ($ 1000s)*
+*$\hat{y}$ = predicted sales ($ 1000s)*
+
+In multiple regression, each coefficient is interpreted as the estimated change in y corresponding to a one unit change in a variable, when all other variables are held constant.
+
+So in this example, £ 9.000 is an estimate of the expected increase in sales y, corresponding to a $1000 increase in capital investment (x1) when marketing expenditures (x2) are held constant.
+
+# Preparation work
+
+- Check the relationships between each variable (independent) and the dependent variable using scatterplots and correlations
+
+- Check the relationship among the independent variables using scatterplots and correlations
+
+- Conduct simple linear regressions for each IV/DV pair
+
+- Use the non-redundant independent variables in the analysis to find the best fitting    model
+
+- Use the best fitting model to make predictions about the dependent variable
+
+## Example
+
+### Creating a data frame
+
+10 trips, total miles travelled, no of deliveries, the daily gas price, total travel time in hours
+
+```{r creating a data frame}
+dat <- tribble(
+  ~milesTravelled, ~numDeliveries,  ~travelTime, ~gasPrice,
+  89, 4, 7, 3.84,
+  66, 1, 5.4, 3.19,
+  78, 3, 6.6, 3.78,
+  111, 6, 7.4, 3.89,
+  44, 1, 4.8, 3.57,
+  77, 3, 6.4, 3.57,
+  80, 3, 7, 3.03,
+  66, 2, 5.6, 3.51,
+  109, 5, 7.3, 3.54,
+  76, 3, 6.4, 3.25)
+
+# milesTravelled = X1
+# numDeliveries = X2
+# travelTime = Y
+# gasPrice = X3
+```
+
+### Checking relationship between D.V and I.V.
+
+We are looking for linear relationship
+
+```{r checking travelTime(Y) and milesTravelled (X1)}
+ggplot(dat, aes(x=milesTravelled, y=travelTime)) +
+    geom_point(shape=1) +    # Use hollow circles
+    geom_smooth(method=lm,   # Add linear regression line
+                se=FALSE)
+```
+
+```{r checking travelTime(Y) and gasPrice (X3)}
+ggplot(dat, aes(x=gasPrice, y=travelTime)) +
+    geom_point(shape=1) +    # Use hollow circles
+    geom_smooth(method=lm,   # Add linear regression line
+                se=FALSE)
+```
+```{r checking travelTime(Y) and numDeliveries (X2)}
+ggplot(dat, aes(x=travelTime, y=numDeliveries)) +
+    geom_point(shape=1) +    # Use hollow circles
+    geom_smooth(method=lm,   # Add linear regression line
+                se=FALSE)
+```
+
+Result: travelTime appears to be highle correlated with milesTraveled ($x_1$) and with numDeliveries ($x_2$) but not with gassPrice ($x_3$). *For learning purposes, gassPrice is still included in further tests.*
+
+We won't use variable gassPrice ($X_3$) in our multiple regression.
+
+### Checking relationship between I.V. and I.V.
+
+Checking for multicollinearity
+
+```{r checking relationship between milesTravelled and numDeliveries}
+ggplot(dat, aes(x=milesTravelled, y=numDeliveries)) +
+    geom_point(shape=1) +    # Use hollow circles
+    geom_smooth(method=lm,   # Add linear regression line
+                se=FALSE)
+
+# strong relationship
+```
+
+```{r checking relationship between milesTravelled and gassPrice}
+ggplot(dat, aes(x=milesTravelled, y=gasPrice)) +
+    geom_point(shape=1) +    # Use hollow circles
+    geom_smooth(method=lm,   # Add linear regression line
+                se=FALSE)
+
+# no pattern
+```
+
+Result: 
+
+- milesTravelled and numDeliveries appear to have a linear relationship, highly correlated
+
+- milesTravelled and gas price / gas price and numDeliveries have no relationship
+
+- Since numDeliveries is highly correlated with milesTravelled, we would not use both in the multiple regression; they are redundant.
+
+
+### Correlation matrix
+
+```{r correlation matrix}
+#library("Hmisc")
+
+cor <- rcorr(as.matrix(dat)); cor
+# I can see same result from the matrix; 
+  # weak relationship between travelTime and gasPrice => won't be used
+  # strong relationship between milesTraveled and numDeliveries => won't be used
+```
+
+**To see how we model regression with incorrect variables, we will leave all four variables (3 independent) in!!**
+
+# Regression Analysis with one variable
+
+1) First step is to perform a simple regression for each independent variable individualy
+
+What to check?
+
+- Coefficients - values, t-statistics, p-value
+- Analysis of Varience (Anova), f-value, p-value
+- R-Squared, R- Squared (adjusted), R-squared(predicted)
+- VIF (Variance Inflation Factor)
+- Mallous Cp
+
+## Travel time (y) on Miles Travelled (X1)
+
+```{r regression 1a}
+lmMod <- lm(travelTime ~ milesTravelled, data=dat)
+```
+
+```{r regression statistics x1}
+summary(lmMod)
+```
+
+### Intepretation
+
+$R^2$: 86.5% of the variation and the dependent variable is accounted for by the independent
+
+SE of regression is the average distance of the data point from the regression line in dependent variable units, how tightly around regression lines our points are
+
+p-value => model is significant
+Data points are 0.342 hours away from regression line (it is in units of dependent variable)
+
+$\hat{y}$ = 3.1856 + 0.0403(milesTravelled)
+
+$\hat{y}$ = 3.1856 + 0.0403(x1)
+
+An increase in 1 mile travelled will increase a delivery time by 0.403 hours.
+
+**84 mile trip estimate:**
+
+$\hat{y}$ = 3.1856 + 0.0403 (84)
+
+$\hat{y}$ = 6.5708 hours (6:34)
+
+** 84 mile trip estimate with intervals**
+
+$\hat{y}$ = 6.5708 +- 2.31 (0.3423)
+
+*2.31 comes from t-table => n-2 decrese of freedom => 10-2=8 => 2.31*
+*0.3423 => SE of regression*
+
+$\hat{y}$ = 5.7764 to 7.3615 hours
+
+$\hat{y}$ = 5:47 to 07:22 (~ 95% PI)
+
+ 
+## Travel time (y) on numDeliveries (X2)
+
+```{r regression 1b}
+lmMod <- lm(travelTime ~ numDeliveries, data=dat)
+```
+
+```{r regression statistics x2}
+summary(lmMod)
+```
+
+### Intepretation
+
+An increase in 1 delivery will increase a delivery time by 0.4983 hours.
+
+$\hat{y}$ = 4.845 + 0.4983 (4)
+$\hat{y}$ = 6.838 hours (6:50)
+
+## Travel time (y) on gasPrice (X3)
+
+```{r regression 1c}
+lmMod <- lm(travelTime ~ gasPrice, data=dat)
+```
+
+```{r regression statistics x3}
+summary(lmMod)
+```
+
+### Intepretation
+
+p-value = 0.455 => no significant
+
+s=0.886
+
+r-sq = 7.14%
+
+=> these statistics are not good for our model
+
+## Summary
+
+```{r summary 1}
+summary <- tribble(
+  ~f, ~pvalue, ~s, ~R2AdjPercent, ~R2PredPercent, ~x1, ~x2, ~x3,
+  49.77, 0.001, 0.34230, 84.42, 79.07, 1, 0 ,0 ,
+  41.96, 0.001, 0.36809, 81.99, 70.27,0 , 1,0 ,
+  0.62, 0.455, 0.88640, 0.00, 0.00,0 ,0 , 1)
+```
+
+Of the three variables, the first one is the fitted variable.
+
+# Regression Analysis with two variables
+
+Combinations: 
+X1, X2
+X1, X3
+X2, X3
+
+## Travel time (y), milesTravelled (X1), numDeliveries (X2)
+
+```{r regression 2a}
+lmMod <- lm(travelTime ~ milesTravelled + numDeliveries, data=dat)
+```
+
+```{r regression statistics x1,x2}
+summary(lmMod)
+```
+
+```{r correlation x1,x2}
+cor(dat$milesTravelled, dat$numDeliveries)
+```
+
+```{r vif}
+# To evaluate multicolinearity of multiple regression model, calculating the variance inflation factor (VIF) from the result of lm(). If VIF is more than 10, multicolinearity is strongly suggested.
+
+#library(car)
+vif(lm(travelTime ~ milesTravelled + numDeliveries, data=dat))
+```
+
+### Interpretation
+
+Regression Equation: 
+
+travelTime (y) = 3.732 + 0.0262 milesTraveled $(X_1)$ + 0.184 numDeliveries $(X_2)$
+
+=> p-value not significant x>5%; $X_1 and X_2$ are extremely correlated with each other (r=0.956)
+
+Overall model is significant but individual variables aren't.
+
+VIF = Variance Inflation Factor => indicates colinearity
+
+Also, difference between R-sq(adj) and R-sq(pred) indicates a problem.
+
+## Travel time (y), milesTravelled (X1), gasPrice (X3)
+
+```{r regression 2b}
+lmMod <- lm(travelTime ~ milesTravelled + gasPrice, data=dat)
+```
+
+```{r regression statistics x1,x3}
+summary(lmMod)
+```
+
+```{r vif x1,x3}
+vif(lm(travelTime ~ milesTravelled + gasPrice, data=dat))
+```
+
+### Intepretation
+
+travelTime(y) = 3.87 + 0.04137 milesTravelled (x1) - 0.219 gasPrice(x3)
+
+If we hold milesTraveled constant and we increase theprice of gass a dollar, then the travel time will decrease by 0.219 hours. Gass price goes up and travel time goes dow.
+
+If gas price is held constant then travel time is expected to increase by 0.04137 hours for each additional mile travelled.
+
+The first interpretation doesn't really make sense. It indicates that there is no relationship to dependant variable.
+
+## Travel time (y), numDeliveries (X2), gasPrice (X3)
+
+```{r regression 2c}
+lmMod <- lm(travelTime ~ numDeliveries + gasPrice, data=dat)
+```
+
+```{r regression statistics x2,x3}
+summary(lmMod)
+```
+
+```{r vif x2,x3}
+vif(lm(travelTime ~ numDeliveries + gasPrice, data=dat))
+```
+
+### Interpretation
+
+travelTime (y)= 7.32 + 0.5665numDeliveries - 0.765 gasPrice
+
+Same problem as above, if gasPrice is held constant, then travelTime is expected to increase by 05665 hours for each additional delivery.
+
+If number of deliveries is held constant, then travelTime expected to decrease by 0.765 hours for each additional dollar increase in gasPrice.
+
+=> no natural relationship to dependant variable
+
+## Summary
+
+```{r summary 2}
+summary <- tribble(
+  ~f, ~pvalue, ~s, ~R2AdjPercent, ~R2PredPercent, ~x1, ~x2, ~x3, ~vif,
+  49.77, 0.001, 0.34230, 84.42, 79.07, 1, 0 ,0 , 1.00,
+  41.96, 0.001, 0.36809, 81.99, 70.27,0 , 1,0 , 1.00,
+  0.62, 0.455, 0.88640, 0.00, 0.00,0 ,0 , 1, 1.00,
+  23.72, 0.001, 0.352264, 83.47, 59.95, 1, 1, 0, 11.59,
+  22.63, 0.001, 0.35988, 82.78, 68.11, 1,0,1, 1.11,
+  27.63, 0.001, 0.32970, 85.55, 71.76, 0, 1,1, 1.30)
+```
+
+One way to measure multicollinearity is the variance inflation factor (VIF), which assesses how much the variance of an estimated regression  oeff. increases if your predictors are correlated. If no factors are correlated, the VIFs will be all 1.
+
+A VIF between 5 to 10 indicates high correlation that may be problematic. And if the VIF goes above 10, you can assume that the regression coefficients are poorly estimated due to multicollinearity.
+
+Looking at statistics above, first model has the best fit. That is our best model.
+
+Recapitulation of statistics
+
+1. Look at R-Sq(adj.) Which are the highest values?
+
+2. Look at R-Sq (pred). Which are the highest values?
+
+3. Examine the difference between R-Sq(adj) and R-Sq(pred). A large drop-off indicates overfitting; too many variables in the model - overfitting.
+
+4. Mallows Cp (if available). Look for oe that is low and approximately equals the numbe of prdictors plus the constant (1). So for single variable model, we are looking for a number 2. For 2 variables, we look for 3.
+
+# Multiple Regression, Dummy Variables
+
+Scenario: I need to develop house pricing model for independent realtors. To generate my model, I use publicly available data such as list price, square footage, number of bedrooms, number of bathrooms etc.
+
+Another question to ask: Is the public high school in the neighborhood "Exemplary" (the highest rating) andhow is that rating related to home price?
+
+High school rating is not quantitative, it is qualitative (categorical). For each home the high school is either exemplary or not; yes or no.
+
+```{r preparing data}
+data2 <- tribble(
+ ~ price1000, ~sqft, ~exmpHS,
+ 145, 1872, "not exemplary",
+ 69.9, 1954, "not exemplary",
+ 315, 4104, "exemplary",
+ 144.9, 1524, "not exemplary",
+ 134.9, 1297, "not exemplary",
+ 369, 3278, "exemplary",
+ 95, 1192, "not exemplary",
+ 228.9, 2252, "exemplary",
+ 149, 1620, "not exemplary",
+ 295, 2466, "exemplary",
+ 388.5, 3188, "exemplary",
+ 75, 1061, "not exemplary",
+ 130, 1195, "not exemplary",
+ 174, 1552, "exemplary",
+ 334.9, 2901, "exemplary")
+```
+
+## Data Introduction
+
+```{r data transformation}
+data2 %>% mutate(new = if_else (data2$exmpHS %in%  c("not exemplary"),0,1)) -> data3
+```
+
+y = home price ($1000s)
+x1 = square footage of home
+x2 = 1 if high school exemplary, 0 otherwise
+
+```{r scatterplot of price versus sqft}
+ggplot(data3, aes(x=sqft, y=price1000, color=new)) +
+    geom_point()+
+    theme(legend.position="none")+
+    labs(title = "Scatterplot of price1000s vs sqft")
+```
+
+We can see definite pattern. We have one group of houses which have lower price and are generally smaller with school being not exemplary.
+
+Second group has higher homes being higher priced and they are new exemplary school.
+
+## Dummy Variables
+
+- In many situations we mush work with categorical independent variables
+- In regression analysis we call these dummy or indicator variables
+- For a variable with n categories there are always n-1 dummy variables
+  - Exemplary/Not exemplary there are 2 categories, so 2-1 = 1 dummy variable
+  - North/South/East/West tehre are 4 categories, so 4-1 = 3 dummy variables
+
+### Dummy variable example
+```{r dummy variable example}
+ dummyexample <- tribble(
+ ~ Region, ~X1, ~X2, ~X3,
+ "North", 1, 0, 0,
+ "South", 0, 1, 0, 
+ "East", 0, 0, 1, 
+ "West", 0, 0,0)
+```
+
+## Data Interpretation
+
+**Estimated Regression Equation**
+
+E(y) = $\beta_0 + \beta_1x_1 + \beta_2x_2$ 
+
+**Expected value of home price given the high school is NOT exemplary, $x_2$ = 0**
+
+E(y | Not exemplary) = $\beta_0 + \beta_1x_1 + \beta_2(0)$
+
+E(y | Not exemplary) = $\beta_0 + \beta_1x_1$
+
+**Expected value of home price given the high school IS exemplary, x2 = 1**
+
+E(y | Exemplary) = $\beta_0 + \beta_1x_1 + \beta_2(1)$
+
+E(y | Exemplary) = $\beta_0 + \beta_1x_1 + \beta_2$
+
+E(y | Exemplary) = $(\beta_0 + \beta_2) + \beta_1x_1$
+
+We get two regression equations.
+
+## Regression Analysis
+
+```{r regression home price}
+lmMod2 <- lm(price1000 ~ sqft + new, data=data3)
+```
+
+```{r regression home price summary}
+summary(lmMod2)
+```
+
+### R-Squared Predicted Calculation
+```{r calculated R-Squared Predicted}
+pr <- residuals(lmMod2)/(1 - lm.influence(lmMod2)$hat)
+PRESS <- sum(pr^2)
+PRESS
+```
+
+```{r anova to calculate residual sum of squares}
+my.anova <- anova(lmMod2)
+tss <- sum(my.anova$"Sum Sq")
+
+# predictive R^2
+pred.r.squared <- 1 - PRESS/(tss)
+pred.r.squared*100
+```
+
+## Statistics interpretation
+
+Looking at regression model, p value is less than 5% which means that the model is significant.
+
+High $R^2$ and $R^2$(adj) along with a $R^2$(pred) that doesn't fall off a cliff are all good signs.
+
+Both varibles are also significant.
+
+*Sqft:* Every square foot is related to an increase in price of 0.0621 ($1000s) or $62.10 per square foot.
+
+*ExemphHS:* On average, a home in an area with an exemplary high school is related to a £98,600 higher price.
+
+E(y) = 27.1 + 0.0621$x_1$ + 98.6$x_2$ Estimated Regression Equation for Re/Model, Inc.
+
+**Expected value of home price givn the high school is NOT exemplary, x2=0**
+
+E(y | Not exemplary) = 27.1 + 0.0621$x_1$ + 98.6 (0)
+
+E(y | Not exemplary) = 27.1 + 0.0621$x_1$
+
+**Expected value of home price given the high school IS exemplary, x2 = 1**
+
+E(y | Exemplary) = 27.1 + 0.0621$x_1$ + 98.6 (1)
+
+E(y | Exemplary) = 27.1 + 0.0621$x_1$ + 98.6
+
+E(y | Exemplary) = (27.1 + 98.6) + 98.6$x_1$
+
+E(y | Exemplary) = 125.7 + 0.0621$x_1$  
+
+**Difference between two equation:**
+
+E(y | Not exemplary) = 27.1 + 0.0621$x_1$
+
+E(y | Exemplary) = 125.7 + 0.0621$x_1$
+
+is 98.6($1000's) => $98,600
+
+Result: Average price difference is $£98,600.
+
+# Multiple Regression, Two Categorical Variables
+
+Scenario: I need to develop house pricing model for independent realtors. To generate my model, I use publicly available data such as list price, square footage, number of bedrooms, number of bathrooms etc.
+
+Another questions to ask: 
+
+1) Is the public high school in the neighborhood "Exemplary" (the highest rating) andhow is that rating related to home price?
+
+2) What region (N,S,E,W) of the city is the home located and how is that related to home price?
+
+```{r preparing data 2}
+data3 <- tribble(
+ ~ price1000, ~sqft, ~exmpHS, ~region,
+ 450, 3860, "yes", "south",
+ 398, 3787, "yes", "north",
+ 412, 3681, "yes", "south",
+ 307, 3643, "yes", "north",
+ 289, 3601, "yes", "east",
+ 310, 2485, "yes", "south",
+ 245, 3401, "yes", "west",
+ 260, 3312, "no", "north",
+ 290, 3213, "yes", "west",
+ 332, 3207, "yes", "south",
+ 377, 3124, "yes", "south",
+ 322, 3109, "yes", "south",
+ 383, 3076, "yes", "east",
+ 404, 3073, "yes", "south",
+ 371, 3052, "yes", "south")
+```
+
+## Data Introduction
+
+```{r data prep}
+data3 %>% 
+  mutate(exemplary = if_else (data3$exmpHS %in% c("yes"),1,0),
+        region_new = if_else (data3$region %in% c("east"),0, 
+                if_else(data3$region %in% c("north"),1,if_else(data3$region %in% c("south"),2,3)))) -> market_data
+```                
+
+## Dummification
+
+```{r data prep2}
+market_data %>% 
+  mutate(south = ifelse(region_new== 2, 1,0),
+          west = ifelse(region_new== 3,1,0),
+          north =ifelse(region_new== 1,1,0)) -> final_dataset
+
+# As previously explained, dummy variables are number of variables - 1, that's why one region is missing from data
+```  
+
+Before I start with regression itself, it is good to check scatterplots for the following:
+
+- house prices x sqft
+- house prices x sqft colored by exemplary
+- house prices x sqft colored by region
+
+
+## Estimated Regression Equation
+
+E(y) = $\beta_0 + \beta_1x_1 + \beta_2x_2 + \beta_3x_3 + \beta_4x_4 + \beta_5x_5$
+
+E(y) = constant + sqft + exemplary + south + west + north
+
+**Example**
+
+Expected value of home price given the HS is NOT exemplary, x2 = 0 and in west, x4 = 1
+
+E(y| Not exemplary & West) = $\beta_0 + \beta_1x_1 + \beta_2(0) + \beta_3(0) + \beta_4(1) + \beta_5(0)$
+
+E(y| Not exemplary & West) = $\beta_0 + \beta_1x_1 + \beta_4$
+
+**Total number of possible equations**
+
+1(constant $\beta_0 $) x 1 (sqft $\beta_1$) x 2 (exemplary $\beta_2$) x 4 (region $\beta_2, \beta_3, \beta_4$) = 8
+
+How to deal with dummy variables in R: http://eclr.humanities.manchester.ac.uk/index.php/Dummy_Variables_in_R
+
